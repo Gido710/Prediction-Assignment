@@ -1,0 +1,102 @@
+---
+title: "ML Activity Measure CEProject"
+author: "Tom"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load data
+
+First we load the libraries that are needed to perform the analysis and read the data as the data frame object. Next we investigate the names of the data set.
+
+```{r }
+library(caret)
+library(gbm)
+
+
+test_file <- "pml-testing.csv"
+training_file <- "pml-training.csv"
+
+data_test <- read.csv(test_file)
+data_train <- read.csv(training_file)
+
+tail(names(data_train),20)
+```
+
+## Preprocessing
+
+As we see there are plenty of the columns that might not be useful in our prediction. There is 160 feathers. So we will cutoff the columns only for these that are related with a specific activity and person. There was a problem later in the pipeline that ML functions gave the error, so we also try to omit all the data that are *NA*  - it solved the problem. Lets keep in mind that that all this will reduce the number of feathers. 
+
+```{r }
+data_train$classe <- factor(data_train$classe)
+selector1 <- colnames(data_test)[(sapply(colnames(data_test),
+                                   function(x){
+                                     (sum(is.na(data_test[,x]))==0)
+                                   }))][1:59]
+selector1 <- c(selector1,'classe')
+data_train <- data_train[ , selector1 ]
+selector2 <- colnames(data_train)[grep('_belt|_arm|_dumb|_forearm|classe',colnames(data_train))]
+data_train <- data_train[ , selector2 ]
+length(selector2)
+```
+
+This will give us 53 feathers. Next we divide the data set into training and testing.
+
+```{r }
+selectors <- createDataPartition( y=data_train$classe, p = 0.6 , list = FALSE )
+train_set <- data_train[ selectors, ]
+test_set <- data_train[ -selectors, ]
+dim(train_set)
+```
+
+We choose to have 11776 ( 60% ) of the data into training and 40% into testing.
+
+## Machine Learning
+
+In this section we will train 3 models:
+
+* RF - Random Forest
+* GBM - Generalized Boosted Regression Models
+* LDA - Linear Discriminant Analysis
+
+```{r ,cache = TRUE}
+model1 <- train(classe~., data = train_set, method = 'rf')
+model2 <- train(classe~., data = train_set, method = 'gbm',verbose=0)
+model3 <- train(classe~., data = train_set, method = 'lda',verbose=0)
+```
+
+
+
+## Predictions
+
+The we do the predictions on our test set make the confusion matrix to investigate which one is the best.
+
+```{r ,cache = TRUE}
+preds1 <- predict( model1, data = test_set )
+preds2 <- predict( model2, data = test_set )
+preds3 <- predict( model3, data = test_set )
+
+conf1 <- confusionMatrix( preds1, train_set$classe )
+conf2 <- confusionMatrix( preds2, train_set$classe )
+conf3 <- confusionMatrix( preds3, train_set$classe )
+```
+
+After performing prediction we check the confusion matrix for:
+
+* conf1 - Random Forest
+* conf2 - Generalized Boosted Regression Models
+* conf3 - Linear Discriminant Analysis
+
+```{r ,cache = TRUE}
+conf1
+conf2
+conf3
+```
+
+## Conclusion
+
+We that the best accuracy has the **model1** - random forest.
